@@ -65,7 +65,7 @@
             v-model="manualAddresses"
             rows="4"
             class="w-full border rounded-md p-2"
-            placeholder="2345 Broadway, New York, NY 10024, USA&#10;1386 Avenue of the Americas, New York, NY 10019, USA"
+            placeholder="Name,address,city,province,postal code,service,time window,notes"
           ></textarea>
         </div>
 
@@ -190,7 +190,12 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
-              <tr v-for="(order, index) in processedOrders" :key="index" :class="{ 'bg-red-50': order.hasError }">
+              <tr 
+                v-for="(order, index) in processedOrders" 
+                :key="index" 
+                :class="{ 'bg-red-50': order.hasError }"
+                @dblclick="openEditLocation(order)"
+              >
                 <td v-for="field in displayFields" :key="field" class="px-4 py-2 text-sm">
                   <div class="flex items-center">
                     <svg v-if="order.hasError" class="h-4 w-4 text-red-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -215,6 +220,76 @@
           </button>
         </div>
       </div>
+
+      <!-- 位置编辑弹窗 -->
+      <div v-if="showLocationEdit" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+        <div class="bg-white rounded-lg p-6 w-[800px] max-h-[90vh] overflow-y-auto">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium">Edit location</h3>
+            <button @click="showLocationEdit = false" class="text-gray-500 hover:text-gray-700">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="space-y-4">
+            <!-- 收件人信息表单 -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Location ID:</label>
+                <input type="text" v-model="editingLocation.id" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Name:</label>
+                <input type="text" v-model="editingLocation.name" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-sm font-medium text-gray-700">Address:</label>
+                <input type="text" v-model="editingLocation.address" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Check-in time:</label>
+                <input type="number" v-model="editingLocation.checkInTime" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Business hours:</label>
+                <div class="mt-1">
+                  <label class="inline-flex items-center">
+                    <input type="checkbox" v-model="editingLocation.isOpen24Hours" class="rounded border-gray-300">
+                    <span class="ml-2 text-sm text-gray-600">Open 24 hours</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Latitude:</label>
+                <input type="text" v-model="editingLocation.latitude" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Longitude:</label>
+                <input type="text" v-model="editingLocation.longitude" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-sm font-medium text-gray-700">Notes:</label>
+                <textarea v-model="editingLocation.notes" rows="2" class="mt-1 block w-full border rounded-md shadow-sm p-2"></textarea>
+              </div>
+            </div>
+
+            <!-- 地图组件 -->
+            <div class="h-[300px] border rounded-lg">
+              <!-- 这里需要集成实际的地图组件 -->
+              <div class="w-full h-full bg-gray-100 flex items-center justify-center">
+                Map Component
+              </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 mt-4">
+              <button @click="showLocationEdit = false" class="px-4 py-2 border rounded-md">Cancel</button>
+              <button @click="saveLocation" class="px-4 py-2 bg-blue-500 text-white rounded-md">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -237,28 +312,50 @@ const processedOrders = ref([])
 
 // 可用字段列表
 const availableFields = [
-  'Order ID',
-  'Email',
-  'Phone',
   'Name',
+  'Phone',
   'Company',
   'Address',
-  'Notes',
-  'Service Type',
+  'Unit',
+  'City',
+  'Province',
+  'Postal Code',
+  'Service',
+  'Time Window',
+  'Notes'
+]
+
+// 必填字段
+const requiredFields = [
+  'Name',
+  'Phone',
+  'Address',
+  'City',
+  'Province',
+  'Postal Code',
+  'Service',
   'Time Window'
+]
+
+// 服务时间选项
+const timeWindowOptions = [
+  { label: '最近的下午 1:00 - 5:00', value: 'afternoon' },
+  { label: '最近的晚上 5:30 - 10:00', value: 'evening' }
 ]
 
 // 显示字段
 const displayFields = [
-  'Order ID',
-  'Date',
-  'Location Accuracy',
+  'Name',
+  'Phone',
+  'Company',
   'Address',
-  'Geocoded Address',
-  'Latitude',
-  'Longitude',
-  'Duration',
-  'Time Windows',
+  'Unit',
+  'City',
+  'Province',
+  'Postal Code',
+  'Service',
+  'Time Window',
+  'Location Accuracy',
   'Notes'
 ]
 
@@ -275,7 +372,7 @@ const canProceed = computed(() => {
 // 映射是否有效
 const isValidMapping = computed(() => {
   const mappedFields = Object.values(columnMapping.value)
-  return mappedFields.includes('Address') // 至少需要地址字段
+  return requiredFields.every(field => mappedFields.includes(field))
 })
 
 // 错误数量
@@ -346,10 +443,26 @@ const goToReview = async () => {
       order[field] = row[index]
     })
     
-    // 模拟地理编码检查
-    order.hasError = Math.random() < 0.2 // 20% 的概率有错误
+    // 检查必填字段
+    order.hasError = requiredFields.some(field => !order[field])
+    
+    // 检查地址格式
+    if (!order.hasError) {
+      const address = [
+        order['Address'],
+        order['Unit'],
+        order['City'],
+        order['Province'],
+        order['Postal Code']
+      ].filter(Boolean).join(', ')
+      
+      // 模拟地理编码检查
+      order.hasError = Math.random() < 0.2 // 20% 的概率有错误
+      order['Geocoded Address'] = address
+      order['Location Accuracy'] = order.hasError ? 'Not Found' : 'Found'
+    }
+    
     order.Date = planningDate.value
-    order['Location Accuracy'] = order.hasError ? 'Not Found' : 'Found'
     order.Duration = serviceDuration.value + ' min'
     
     return order
@@ -366,4 +479,60 @@ const finalizeImport = () => {
 }
 
 const emit = defineEmits(['close'])
+
+// 位置编辑相关状态
+const showLocationEdit = ref(false)
+const editingLocation = ref({
+  id: '',
+  name: '',
+  address: '',
+  checkInTime: 0,
+  isOpen24Hours: false,
+  latitude: '',
+  longitude: '',
+  notes: ''
+})
+const editingOrderIndex = ref(-1)
+
+// 打开位置编辑弹窗
+const openEditLocation = (order) => {
+  editingLocation.value = {
+    name: order['Name'] || '',
+    address: order['Address'] || '',
+    unit: order['Unit'] || '',
+    city: order['City'] || '',
+    province: order['Province'] || '',
+    postalCode: order['Postal Code'] || '',
+    phone: order['Phone'] || '',
+    company: order['Company'] || '',
+    service: order['Service'] || '',
+    timeWindow: order['Time Window'] || '',
+    notes: order['Notes'] || ''
+  }
+  editingOrderIndex.value = processedOrders.value.indexOf(order)
+  showLocationEdit.value = true
+}
+
+// 保存位置信息
+const saveLocation = () => {
+  if (editingOrderIndex.value >= 0) {
+    const order = processedOrders.value[editingOrderIndex.value]
+    order['Name'] = editingLocation.value.name
+    order['Address'] = editingLocation.value.address
+    order['Unit'] = editingLocation.value.unit
+    order['City'] = editingLocation.value.city
+    order['Province'] = editingLocation.value.province
+    order['Postal Code'] = editingLocation.value.postalCode
+    order['Phone'] = editingLocation.value.phone
+    order['Company'] = editingLocation.value.company
+    order['Service'] = editingLocation.value.service
+    order['Time Window'] = editingLocation.value.timeWindow
+    order['Notes'] = editingLocation.value.notes
+    
+    // 重新验证位置
+    order.hasError = false
+    order['Location Accuracy'] = 'Found'
+  }
+  showLocationEdit.value = false
+}
 </script> 
