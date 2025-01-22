@@ -1,51 +1,114 @@
 <template>
   <div class="container mx-auto p-4">
-    <!-- 顶部统计信息 -->
-    <OrderSummary
-      :count="packages.length"
-      :base-price="basePrice"
-      :hst-rate="0"
-      @batch-add="addPackage"
-      @add-package="addToCart"
-      @submit="submitOrder"
-    />
+    <!-- 顶部导航和语言切换 -->
+    <div class="mb-4 flex justify-between items-center">
+      <div class="flex items-center gap-4">
+        <NuxtLink to="/user" class="text-blue-500 hover:text-blue-700">About</NuxtLink>
+        <NuxtLink to="/order" class="text-blue-500 hover:text-blue-700">Orders</NuxtLink>
+      </div>
+      
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <button 
+            @click="setLocale('en')"
+            class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200"
+          >EN</button>
+          <button 
+            @click="setLocale('fr')"
+            class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200"
+          >FR</button>
+        </div>
+        
+        <button 
+          @click="ulogin" 
+          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          v-if="!isLoggedIn"
+        >
+          {{ $t('login') }}
+        </button>
+        <button 
+          @click="checkLoginState" 
+          class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          v-else
+        >
+          {{ $t('check_status') }}
+        </button>
+      </div>
+    </div>
 
-    <!-- 包裹列表 -->
-    <div class="space-y-2">
-      <PackageCard
-        v-for="(pkg, index) in packages"
-        :key="index"
-        v-model="packages[index]"
-        :index="index"
+    <!-- 包裹管理部分 -->
+    <div v-if="isLoggedIn">
+      <!-- 顶部统计信息 -->
+      <OrderSummary
+        :count="packages.length"
+        :base-price="basePrice"
+        :hst-rate="0"
+        @batch-add="showBatchHandler = true"
+        @add-package="addToCart"
+        @submit="submitOrder"
       />
+
+      <!-- 包裹列表 -->
+      <div class="space-y-2">
+        <PackageCard
+          v-for="(pkg, index) in packages"
+          :key="index"
+          v-model="packages[index]"
+          :index="index"
+        />
+      </div>
+
+      <!-- 批量处理弹窗 -->
+      <BatchHandler
+        v-if="showBatchHandler"
+        @close="showBatchHandler = false"
+        @submit="handleBatchSubmit"
+      />
+    </div>
+    
+    <!-- 未登录提示 -->
+    <div v-else class="text-center py-8">
+      <p class="text-gray-500">{{ $t('please_login') }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useOrderStore } from '~/stores/order'
 import PackageCard from '~/components/PackageCard.vue'
 import OrderSummary from '~/components/OrderSummary.vue'
+import { userAPI } from '~/services/api/modules/users'
+import BatchHandler from '~/components/BatchHandler.vue'
 
-const store = useOrderStore()
+const { setLocale } = useI18n()
+const orderStore = useOrderStore()
 const packages = ref([])
 const basePrice = 0.01 // CAD
+const isLoggedIn = ref(false)
+const showBatchHandler = ref(false)
 
-// 计算总金额
-const totalAmount = computed(() => {
-  return (packages.value.length * basePrice).toFixed(2)
-})
+// 登录相关方法
+function checkLoginState() {
+  userAPI.checkLoginState().then(res => {
+    console.log(res)
+    isLoggedIn.value = true // 根据实际返回值设置
+  })
+}
 
-const hst = computed(() => {
-  return (parseFloat(totalAmount.value) * 0).toFixed(2)
-})
+function ulogin() {
+  let params = {
+    "loginName": "chenqu",
+    "password": "19343990"
+  }
+  userAPI.login(params).then(res => {
+    console.log(res)
+    isLoggedIn.value = true // 根据实际返回值设置
+  })
+}
 
-const grandTotal = computed(() => {
-  return (parseFloat(totalAmount.value) + parseFloat(hst.value)).toFixed(2)
-})
-
-// 修改 createNewPackage 函数，添加 isExpanded 属性
+// 包裹相关方法
 const createNewPackage = () => {
   return {
     isCompleted: false,
@@ -58,7 +121,7 @@ const createNewPackage = () => {
       phone: '',
       unit: '',
       doorNumber: '',
-      isDefault: false  // 新增默认地址标志
+      isDefault: false
     },
     receiver: {
       company: '',
@@ -88,10 +151,22 @@ const createNewPackage = () => {
   }
 }
 
-// 修改 addPackage 函数
 const addPackage = () => {
   packages.value.push(createNewPackage())
 }
+
+// 计算总金额
+const totalAmount = computed(() => {
+  return (packages.value.length * basePrice).toFixed(2)
+})
+
+const hst = computed(() => {
+  return (parseFloat(totalAmount.value) * 0).toFixed(2)
+})
+
+const grandTotal = computed(() => {
+  return (parseFloat(totalAmount.value) + parseFloat(hst.value)).toFixed(2)
+})
 
 // 添加获取按钮文本的函数
 const getButtonText = (step) => {
@@ -136,7 +211,7 @@ const handleStepAction = async (index) => {
     }
     // 完成订单
     try {
-      await store.createOrder(pkg)
+      await orderStore.createOrder(pkg)
       pkg.isCompleted = true
       pkg.isExpanded = false
     } catch (error) {
@@ -182,7 +257,7 @@ const submitOrder = async () => {
     return
   }
   try {
-    await store.submitOrders(packages.value)
+    await orderStore.submitOrders(packages.value)
     packages.value = []
     addPackage()
   } catch (error) {
@@ -259,13 +334,18 @@ const increaseTip = (pkg) => {
 
 // 添加到购物车
 const addToCart = () => {
-  // TODO: 实现添加到购物车的逻辑
   addPackage()
 }
 
 // 初始化添加一个包裹
 if (packages.value.length === 0) {
   addPackage()
+}
+
+const handleBatchSubmit = (data) => {
+  console.log('Batch data:', data)
+  // TODO: 处理批量数据
+  showBatchHandler.value = false
 }
 </script>
 

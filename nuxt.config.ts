@@ -1,17 +1,19 @@
 import { defineNuxtConfig } from 'nuxt/config'
 
 export default defineNuxtConfig({
-  components: true,
+  compatibilityDate: '2024-11-01',
+  devtools: { enabled: true },
   modules: [
-    '@pinia/nuxt',
-    '@nuxt/ui'
+    '@nuxt/ui', 
+    '@nuxtjs/i18n',
+    '@pinia/nuxt'
   ],
-
-  //@ts-ignore
-  ui: {
-    global: true,
-    icons: ['mdi', 'heroicons']
+  i18n: {
+    vueI18n: './locales/config.ts'
   },
-
-  compatibilityDate: '2025-01-20',
+  runtimeConfig: {
+    public: {
+      apiBase: process.env.API_URL || 'http://localhost:3000'
+    }
+  }
 })

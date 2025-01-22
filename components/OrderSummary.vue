@@ -19,13 +19,13 @@
 
       <!-- 操作按钮 -->
       <div class="flex gap-2">
-        <UButton
-          color="gray"
-          size="sm"
+        <button 
           @click="$emit('batch-add')"
+          class="btn btn-primary"
         >
-          批量添加
-        </UButton>
+          批量发货
+        </button>
+        <slot name="actions"></slot>
         <UButton
           color="primary"
           size="sm"
@@ -37,6 +37,7 @@
           color="green"
           size="sm"
           @click="$emit('submit')"
+          :disabled="count === 0"
         >
           下单
         </UButton>
